@@ -1,16 +1,39 @@
-# CX3 Android USB Viewer — diagnostic PoC
+# SOL CX3 USB Camera — Android live RAW preview (experimental)
 
-Independent Kotlin Android project for a CX3 vendor-specific USB device. This is NOT decompiled CameraFi source. The app enumerates USB devices, lists interfaces/endpoints, requests permission, and captures up to 32 MiB from the first vendor-specific bulk IN endpoint for up to 5 seconds.
+Independent Kotlin/Android USB Host proof of concept for a Cypress/Infineon CX3 bridge. This is **not** CameraFi source code and does **not** claim compatibility with SOL's proprietary firmware yet.
 
-## Build
-Open in Android Studio with Android SDK 35 and Gradle 8.7-compatible toolchain; sync and run on an Android phone with USB Host/OTG. The source project has not been built or hardware-tested in this environment.
+## Implemented
+- USB device enumeration, VID/PID, interface and endpoint inspection, Android permission prompt.
+- Claim first Bulk IN endpoint and continuously receive payloads.
+- Reassemble fixed-size RAW8, MIPI RAW10 and MIPI RAW12 frames by width/height.
+- Display grayscale preview on Android ImageView, throttled to about 5 preview updates/second (capture continues independently).
+- Manual vendor control transfers: editable hexadecimal bmRequestType, bRequest, wValue, wIndex and OUT payload; IN read length.
+- Start/stop capture UI and error reporting.
 
-## Limitations
-- No sensor register configuration, CX3 firmware protocol, stream-start control transfer, frame boundary detection, or RAW10/RAW12 unpacking.
-- Does not display video yet; captures diagnostic bytes only.
-- Some CX3 firmware exposes different USB interface classes/endpoints, so adapt enumeration based on real descriptors.
-- Bulk IN will time out if the device requires vendor-specific stream-start commands.
-- Do not reuse CameraFi proprietary libraries or code; independent implementation only.
+## Not implemented / cannot assume
+- **Exact CX3/SOL firmware control opcodes** (start/stop/reset, sensor register programming). No valid command can be asserted without firmware source, documented request map, or verified USB trace.
+- Automatic frame synchronization or resynchronization. The code assumes tightly packed pixel bytes with no frame headers, line padding, packet metadata or inter-frame gaps.
+- UVC VideoStreaming negotiation (VS_PROBE_CONTROL / VS_COMMIT_CONTROL), UVC isochronous payload parsing, MJPEG/YUY2, or Android CameraFi protocol emulation.
+- Color demosaicing, 50MP memory/performance optimization, USB disconnect recovery, safe reconnect while streaming.
+- APK build, device testing, real-time throughput/FPS benchmarking.
 
-## Next evidence needed
-CX3 VID/PID, USB descriptors, firmware or PC viewer source, USBPcap/Wireshark trace including device initialization and one image capture, sensor resolution/bit depth, frame markers.
+## Usage
+1. Open in Android Studio; install Android SDK 35 and sync Gradle.
+2. Connect Android USB-OTG host to CX3; select a device and grant USB permission.
+3. Inspect the listed interface class and endpoints. This app needs a **Bulk IN** endpoint.
+4. Enter actual RAW frame width, height, and pixel format; start preview only after the CX3 firmware is already streaming.
+5. If the firmware requires start commands, obtain the **verified** request map or USBPcap/Wireshark capture from the original PC Viewer, then enter the correct bmRequestType/bRequest/wValue/wIndex/payload.
+6. If bytes are received but the picture is scrambled, check frame boundaries, line stride, CSI packing, sensor mode and metadata; do not interpret the preview as valid measurement data.
+
+## Technical cautions
+- Android USB Host bulkTransfer() is not a substitute for a full UVC stack.
+- Some CX3 firmware uses UVC, others use vendor Bulk; identify actual descriptors first.
+- Do not send guessed vendor commands: they may reconfigure hardware or firmware unexpectedly.
+- Preview converts to an ARGB bitmap and is suitable for small diagnostic frames; full-resolution 8MP/50MP needs a bounded buffer pool, efficient unpacking and GPU rendering.
+- The repository is public. Do not commit proprietary SOL firmware, captured patient/sample data, or secrets.
+
+## Evidence needed for hardware-specific integration
+CX3 USB VID/PID and descriptors; original PC Viewer or its USB control trace; known working sensor mode (RAW8/10/12, width, height, line stride); start/stop command sequence; packet framing details.
+
+## Status
+Source-only PoC, not yet compiled or tested on physical hardware.
